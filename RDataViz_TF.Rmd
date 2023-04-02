@@ -1,0 +1,233 @@
+---
+title: "ATENCIONES REALIZADAS A LOS ASEGURADOS DEL SEGURO INTEGRAL DE SALUD - ENERO 2019"
+author: "Maryann Alata Chambilla"
+date: "2023-03-31"
+output: rmdformats::material
+orientation: columns
+vertical_layout: fill
+---
+
+# INICIO
+
+### Descripción del caso
+
+En el Marco de Gobernanza de Datos del Estado Peruano, las entidades de la Administración Pública deben implementar disponibilizan datos de su administración para asegurar un nivel básico y aceptable para la recopilación, procesamiento, publicación, almacenamiento y apertura de los datos que administre. En este sentido, el Seguro Integral de Salud (SIS) publica de manera semestral la información estadística de atenciones que se encuentra bajo la cobertura financiera de alguno de los Regímenes de Financiamiento de la IAFAS SIS.
+
+| ATRIBUTO              | DESCRIPCIÓN                                                                                                      | TIPO DE DATO       |
+|-----------------------|------------------------------------------------------------------------------------------------------------------|--------------------|
+| AÑO                   | Año de atención                                                                                                  | AAAA: año          |
+| MES                   | Mes de atención                                                                                                  | MM: Mes            |
+| REGION                | Región de atención                                                                                               | Alfanumérico (200) |
+| PROVINCIA             | Provincia de atención                                                                                            | Alfanumérico (200) |
+| UBIGEO_DISTRITO       | Código de Ubigeo del distrito de la Atención                                                                     | Alfanumérico (6)   |
+| DISTRITO              | Distrito de la atención                                                                                          | Alfanumérico (200) |
+| COD_UNIDAD_EJECUTORA  | Código de la Unidad Ejecutora                                                                                    | Alfanumérica (4)   |
+| DESC_UNIDAD_EJECUTORA | Unidad Ejecutora de la Atención                                                                                  | Alfanumérica (200) |
+| COD_IPRESS            | Registro Nacional de Instituciones Prestadoras de Servicios de Salud de Atención (RENIPRESS)                     | Alfanumérico (200) |
+| IPRESS                | Institución Prestadora de Servicios de Salud o Establecimiento de Salud de atención                              | Alfanumérico (200) |
+| NIVEL_EESS            | Nivel de Establecimiento de Salud I: Nivel I II: Nivel II III: Nivel III                                         | Alfanumérico (1)   |
+| PLAN_DE_SEGURO        | Tipo de seguro SIS, asociado al listado de beneficios (prestados de salud) que brinda su cobertura financiera    | Alfanumérico (50)  |
+| COD_SERVICIO          | Código Prestacional                                                                                              | Alfanumérico (3)   |
+| GRUPO_EDAD            | Grupo edad de acuerdo a Normas MINSA Vigente 00-04 Años 05-11 Años 12-17 Años 18-29 Años 30-59 Años 60- más años | Alfanumérico (10)  |
+| ATENCIONES            | Cantidad de Atenciones                                                                                           | Numérico           |
+Fuente: https://www.datosabiertos.gob.pe/
+
+Para este trabajo, se realizará un Análisis Exploratorio de Datos (AED) con este dataset, para responder a algunas consultas referente alas características y la distribución espacial de los pacientes, durante enero del 2019.
+
+### Lectura y pre-procesamiento de datos
+
+Empezamos importando las librerías necesarias, así como el dataset en cuestión. 
+
+```{r pwd, include = F, echo = F, warning=F}
+# Coonfiguración del entorno
+rm(list = ls())
+path <- "C:/Users/maac/Documents/TF_R_EPC"
+```
+
+```{r Lectura de librerías, include=T, message = F, echo = T, warning=F}
+## <span style="color : #1135EC"> **MINSA** </span>
+# Cargar librerías necesarias
+library(tidyverse)
+library(readxl)
+library(sf)
+library(janitor)
+library(data.table)
+library(grid)
+library(gridExtra)
+library(ggrepel)
+
+# Lectura de datos
+setwd(path)
+Data <- read_csv("RDataViz_TF_files/OPENDATA_DS_01_2019_ATENCIONES.csv", 
+                 locale = locale(encoding="latin1")) 
+
+Dep_shp <- read_sf("mapasDpto/DEPARTAMENTOS_inei_geogpsperu_suyopomalia.shp")
+Dep_shp <- Dep_shp %>% mutate(NOMBDEP = factor(NOMBDEP, levels = unique(Dep_shp$NOMBDEP))) # Conversión a factor
+Dep_points <- Dep_shp %>% st_centroid() # Extracción de centroides
+```
+
+
+```{r LecturaData, include = T, echo = T, warning=F, size="small"}
+
+Data <- Data %>%
+  # Omitir errores de digitación en las categorías del sexo
+  filter(SEXO == 'MASCULINO' | SEXO == 'FEMENINO') %>%
+  # Unir LIMA METROPOLITANA y LIMA REGIÓN
+  mutate(REGION = ifelse(REGION == 'LIMA METROPOLITANA' | REGION == 'LIMA REGION','LIMA', REGION)) %>%
+  # Quitar tildes a los departamentos
+  mutate(REGION = ifelse(REGION == 'ÁNCASH','ANCHASH', REGION)) %>%
+  mutate(REGION = ifelse(REGION == 'APURÍMAC','APURIMAC', REGION)) %>%
+  mutate(REGION = ifelse(REGION == 'HUÁNUCO','HUANUCO', REGION)) %>%
+  mutate(REGION = ifelse(REGION == 'JUNÍN','JUNIN', REGION)) %>%
+  mutate(REGION = ifelse(REGION == 'SAN MARTÍN','SAN MARTIN', REGION)) %>%
+  # Corregir errores de digitación en las categorías de edades
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == 'MASCULINO' | GRUPO_EDAD == 'FEMENINO',NA, GRUPO_EDAD)) %>%
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == '00 - 04 años','00 - 04 AÑOS', GRUPO_EDAD)) %>%
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == '05 - 11 años','05 - 11 AÑOS', GRUPO_EDAD)) %>%
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == '12 - 17 años','12 - 17 AÑOS', GRUPO_EDAD)) %>%
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == '18 - 29 años','18 - 29 AÑOS', GRUPO_EDAD)) %>%
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == '30 - 59 años','30 - 59 AÑOS', GRUPO_EDAD)) %>%
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == '60 - mas años','60 - MÁS AÑOS', GRUPO_EDAD)) %>%
+  mutate(GRUPO_EDAD = ifelse(GRUPO_EDAD == '60 - MAS AÑOS','60 - MÁS AÑOS', GRUPO_EDAD))
+
+# Conversión a factor
+Data <- Data %>% 
+  mutate(REGION = factor(REGION, levels = unique(Data$REGION))) %>%
+  mutate(GRUPO_EDAD = factor(GRUPO_EDAD, levels = unique(Data$GRUPO_EDAD))) %>%
+  mutate(SEXO = factor(SEXO, levels = unique(Data$SEXO)))
+
+Data <- na.omit(Data[,-c(1,2)])       # Eliminar columnas de AÑO, MES y omitir filas con NA
+
+str(Data)   # Visualizar las características del dataset
+```
+
+Como se observa en la salida, luego del procesamiento se cuenta con 1 048 575 registros de pacientes, todos con información como variables categóricos, por lo que escogemos tres para el análisis (departamento, categorías de edades y sexo) y las convertimos en factor. Así mismo, importamos un shapefile de los departamentos del Perú para el análisis espacial.
+
+# ANÁLISIS POR EDAD Y SEXO
+
+### ¿Cuál es el rango de edad más y menos frecuente entre los pacientes?
+
+```{r AnalisisEdad, include = T, message = F, echo = F, warning=F, fig.align='center', fig.height = 4, fig.width = 6, out.width='400in'}
+Edad <- Data %>% group_by('GRUPO_EDAD') %>% tabyl(GRUPO_EDAD) %>% data.frame()
+
+Edad_order <- c('00 - 04 AÑOS','05 - 11 AÑOS','12 - 17 AÑOS','18 - 29 AÑOS','30 - 59 AÑOS','60 - MÁS AÑOS')
+
+Edad %>% 
+  ggplot(mapping = aes(x = ordered(GRUPO_EDAD, rev(Edad_order)), y = n, fill = GRUPO_EDAD)) +
+  geom_bar(stat = "identity")+ coord_flip() +
+  scale_fill_manual(values = c("yellow", "mediumseagreen",'pink','purple','tomato','lightblue')) +
+  geom_text(aes(label = paste(n, '[', round(percent*100, 1), '%]')), nudge_y = 30000) + 
+  ylim(0, 270000) + theme_classic() +
+  labs(title = 'ATENCIÓN SIS - ENERO 2019: CATEGORÍAS DE EDADES', x = 'EDAD', y = '') + 
+  theme(plot.title = element_text(color="red", size=14, face="bold"),
+        axis.title.x = element_text(color="black", size=12),
+        legend.position = "none")
+```
+
+De la gráfica anterior, se deduce que la mayor proporción de pacientes tienen entre 0 y 4 años (22% del total), mientras que los mayores a 60 años son menos frecuentes (10.6%). 
+
+### ¿Cómo es la distribución del sexo del paciente por cada categoría de edad?
+
+Ahora, respecto al sexo del paciente (siguiente figura), en la totalidad del las edades predomina el sexo femenino, siendo mayor entre los pacientes de 30 a 59 años.
+
+```{r AnalisisSexoEdad, include = T, message = F, echo = F, warning=F, fig.align='center', fig.height = 4, fig.width = 8}
+SexEdad <- Data %>% group_by(GRUPO_EDAD,SEXO) %>% summarise(count = n()) %>% data.frame()
+
+SexEdad %>%
+  ggplot(mapping = aes(x = ordered(GRUPO_EDAD, rev(Edad_order)), y = count, fill = SEXO)) +
+  geom_bar(stat = "identity") + coord_flip() +
+  geom_text(aes(label = paste( round(count / sum(count) * 100 , 1), '%' ),
+                group = SEXO), position = position_stack(vjust = .5)) +
+  scale_fill_manual(values = c('hotpink','steelblue')) +
+  labs(title = 'ATENCIÓN SIS - ENERO 2019: CATEGORÍAS DE EDADES', x = 'EDAD', y = '') +
+  theme_classic() +
+  theme(plot.title = element_text(color="red", size=14, face="bold"),
+        axis.title.x = element_text(color="black", size=12))
+```
+
+# ANÁLISIS TERRITORIAL
+
+### ¿Cuáles son los departamentos con más y menos pacientes?
+
+De la siguiente figura, se concluye que Lima y Cajamarca son los departamentos con mayores pacientes registrados, sumando juntos más del 20% del total. En tanto, Tumbes y Moquegua son los que menor n° de registros cuentan, sumando poco más del 1% del total.
+
+```{r AnalisisDepartamentos_1, include = T, message = F, echo = F, warning=F, fig.align='center', fig.height = 5, fig.width = 10}
+Dep <- Data %>% group_by('REGION') %>% tabyl(REGION) %>% data.frame() %>% arrange(desc(n))
+
+Dep %>%
+  ggplot(mapping = aes(x = reorder(REGION, +n), y = n)) +
+  geom_bar(stat = "identity", fill = "green")+ coord_flip() +
+  geom_text(aes(label = paste(n, ' [', round(percent*100, 1), '%]')), nudge_y = 15000) +
+  ylim(0, 135000) + theme_classic() +
+  labs(title = 'ATENCIÓN SIS - ENERO 2019: DEPARTAMENTOS', x = 'DEPARTAMENTO', y = '') +
+  theme(plot.title = element_text(color="red", size=14, face="bold"),
+        axis.title.x = element_text(color="black", size=12))
+```
+
+### ¿Cuáles son las regiones del país con mayor y menor pacientes atendidos?
+
+Del siguiente, se concluye que la costa central y parte de la sierra norte registran la mayor cantidad de pacientes; en tanto, la sierra central y sur registran una moderada cantidad de pacientes; al contrario de parte de la costa sur y la selva centro-sur, que son las regiones con menor información.
+
+```{r AnalisisDepartamentos_2, include = T, message = F, echo = F, warning=F, fig.align='center', fig.height = 5, fig.width = 5}
+Dep2 <- Dep %>% filter(REGION %in% Dep_shp$NOMBDEP)
+
+Dep_shp %>%
+  left_join(Data %>% count(REGION), name = "n",
+            by =c("NOMBDEP"= "REGION")) %>%
+  mutate(n = as.numeric(n)) %>%
+  ggplot() +
+  geom_sf(aes(fill = n), show.legend = T, colour = "white")+
+  geom_label_repel(aes(label = NOMBDEP,geometry = geometry),
+                   size = 2,
+                   stat = "sf_coordinates",
+                   min.segment.length = 0,
+                   label.size = 1,
+                   max.overlaps = Inf) +
+  labs(title = 'ATENCIÓN SIS - ENERO 2019') +
+  scale_fill_gradient(low = "white", high = "darkblue") +
+  theme_void() +
+  theme(plot.title = element_text(color="red", size=14, face="bold"))
+```
+
+### Considerando la edad y sexo del paciente ¿Cuáles son las características más comúnes a nivel nacional?¿Dónde se concentran?
+
+A nivel nacional, predomina las pacientes femeninas de entre 30 y 59 años, excepto en la sierra norte, donde predominan los pacientes masculinos de entre 0 a 4 años. Se diferencia Loreto, donde predomina las pacientes femeninas de entre 18 y 29 años.
+
+```{r AnalisisDepartamentos_3, include = T, message = F, echo = F, warning=F, fig.height = 5, fig.width = 5}
+xy <- Dep_points$geometry %>% st_coordinates()
+coords <- data.frame(NOMBDEP = Dep_points$NOMBDEP, x = xy[,1], y = xy[,2])
+
+DepSexEdad <- Data %>%
+                  # Conteo de categorías
+                  group_by(REGION, GRUPO_EDAD, SEXO) %>% summarize(count = n()) %>% data.frame() %>% arrange(desc(count)) %>%
+                  # Seleccionar las categorías más comunes
+                  group_by(REGION) %>% summarize(max_freq_edad = first(GRUPO_EDAD), max_freq_sexo = first(SEXO)) %>%
+                  # Filtrar regiones con información geográfica (shapefile: Dep_shp)
+                  filter(REGION %in% Dep_shp$NOMBDEP) %>%
+                  # Insertar centroides del departamentos
+                  left_join(coords, by = c("REGION" = "NOMBDEP"))
+
+ggplot() +
+  geom_sf(data = Dep_shp %>% st_transform(crs = 4326)) +
+  geom_point(data = DepSexEdad, alpha = 1, aes(x, y, shape=max_freq_edad, color=max_freq_sexo), size = 3) +
+  labs(title = 'CARACTERÍSTICAS MÁS COMUNES', x = 'LONGITUD', y = 'LATITUD', shape = 'EDAD', color = 'SEXO') +
+  scale_color_manual(values = c('hotpink','steelblue')) +
+  theme_bw() +
+  theme(plot.title = element_text(color="red", size=14, face="bold"),
+        axis.title.x = element_text(color="black", size=12),
+        axis.title.y = element_text(color="black", size=12),
+        legend.background = element_rect(fill="white", size=.5, linetype="dotted"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
