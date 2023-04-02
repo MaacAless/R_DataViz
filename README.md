@@ -1,7 +1,8 @@
 # Trabajo final - Analítica de datos y visualización de datos espaciales con R
 
-Autora: Maryann Alessandra Alata Chambilla
-Fecha: 01/04/2023
+* Autora: Maryann Alessandra Alata Chambilla
+
+* Fecha: 01/04/2023
 
 ### Análisis exploratorio: ATENCIONES REALIZADAS A LOS ASEGURADOS DEL SEGURO INTEGRAL DE SALUD - ENERO 2019
 
